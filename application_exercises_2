@@ -1,0 +1,120 @@
+------------   Hệ thống Phân tích và Quản lý Gian lận Tài chính Ngân hàng    -----------
+-- Tạo cơ sở dữ liệu
+CREATE DATABASE FraudDetectionSystem;
+GO
+USE FraudDetectionSystem;
+GO
+
+-- Tạo bảng Customers
+CREATE TABLE Customers (
+    CustomerID INT PRIMARY KEY IDENTITY(1,1),
+    FullName NVARCHAR(100) NOT NULL,
+    Email NVARCHAR(100),
+    PhoneNumber NVARCHAR(15),
+    Address NVARCHAR(200)
+);
+
+-- Tạo bảng Accounts
+CREATE TABLE Accounts (
+    AccountID INT PRIMARY KEY IDENTITY(1,1),
+    CustomerID INT NOT NULL,
+    Balance DECIMAL(15, 2) DEFAULT 0.00,
+    AccountType NVARCHAR(50),
+    OpenDate DATE DEFAULT GETDATE(),
+    FOREIGN KEY (CustomerID) REFERENCES Customers(CustomerID)
+);
+
+-- Tạo bảng Devices (cần tạo trước để Transactions tham chiếu)
+CREATE TABLE Devices (
+    DeviceID INT PRIMARY KEY IDENTITY(1,1),
+    DeviceType NVARCHAR(50),
+    IPAddress NVARCHAR(50),
+    IsTrusted BIT DEFAULT 1
+);
+
+-- Tạo bảng Transactions (sau khi Devices đã được tạo)
+CREATE TABLE Transactions (
+    TransactionID INT PRIMARY KEY IDENTITY(1,1),
+    AccountID INT NOT NULL,
+    Amount DECIMAL(15, 2) NOT NULL,
+    TransactionDate DATETIME DEFAULT GETDATE(),
+    TransactionType NVARCHAR(50) NOT NULL,
+    DeviceID INT NOT NULL,
+    IsFraud BIT DEFAULT 0,
+    FOREIGN KEY (AccountID) REFERENCES Accounts(AccountID),
+    FOREIGN KEY (DeviceID) REFERENCES Devices(DeviceID)
+);
+
+INSERT INTO Customers (FullName, Email, PhoneNumber, Address)
+VALUES
+(N'Nguyen Van A', N'nguyenvana@example.com', '0987654321', N'Hanoi'),
+(N'Tran Thi B', N'tranthib@example.com', '0978123456', N'Ho Chi Minh'),
+(N'Le Van C', N'levanc@example.com', '0967543210', N'Da Nang');
+
+INSERT INTO Accounts (CustomerID, Balance, AccountType, OpenDate)
+VALUES
+(1, 50000000, N'Savings', '2021-01-15'),
+(2, 10000000, N'Current', '2022-06-10'),
+(3, 200000000, N'Fixed Deposit', '2020-11-05');
+
+INSERT INTO Devices (DeviceType, IPAddress, IsTrusted)
+VALUES
+(N'Mobile', N'192.168.1.10', 1),
+(N'PC', N'203.113.5.20', 0),
+(N'ATM', N'10.10.10.10', 1);
+
+INSERT INTO Transactions (AccountID, Amount, TransactionType, DeviceID, IsFraud, TransactionDate)
+VALUES
+(1, 1000000, N'Deposit', 1, 0, '2023-01-10'),
+(1, 20000000, N'Transfer', 2, 1, '2023-01-20'),  -- Gian lận
+(2, 500000, N'Withdraw', 3, 0, '2023-02-05'),
+(3, 500000000, N'Deposit', 2, 1, '2023-03-01');  -- Gian lận
+
+-- Tìm tỷ lệ giao dịch gian lận so với giao dịch hợp lệ
+SELECT 
+    SUM(CASE WHEN IsFraud = 1 THEN 1 ELSE 0 END) * 1.0 / COUNT(*) AS FraudRate
+FROM Transactions;
+
+-- Tổng số tiền bị gian lận
+SELECT 
+    SUM(Amount) AS TotalFraudAmount
+FROM Transactions
+WHERE IsFraud = 1;
+
+-- Khách hàng có giao dịch gian lận nhiều nhất
+SELECT 
+    C.FullName, 
+    COUNT(T.TransactionID) AS FraudCount
+FROM Customers C
+JOIN Accounts A ON C.CustomerID = A.CustomerID
+JOIN Transactions T ON A.AccountID = T.AccountID
+WHERE T.IsFraud = 1
+GROUP BY C.FullName
+ORDER BY FraudCount DESC;
+
+-- Danh sách các giao dịch từ thiết bị không đáng tin cậy (IsTrusted = 0)
+SELECT 
+    T.TransactionID, 
+    C.FullName, 
+    D.DeviceType, 
+    T.Amount, 
+    T.TransactionDate
+FROM Transactions T
+JOIN Accounts A ON T.AccountID = A.AccountID
+JOIN Customers C ON A.CustomerID = C.CustomerID
+JOIN Devices D ON T.DeviceID = D.DeviceID
+WHERE D.IsTrusted = 0;
+
+-- Phân tích giao dịch quốc tế bất thường (giả định IP từ nước ngoài không đáng tin)
+SELECT 
+    T.TransactionID, 
+    T.Amount, 
+    T.TransactionDate, 
+    D.IPAddress, 
+    C.FullName
+FROM Transactions T
+JOIN Devices D ON T.DeviceID = D.DeviceID
+JOIN Accounts A ON T.AccountID = A.AccountID
+JOIN Customers C ON A.CustomerID = C.CustomerID
+WHERE D.IPAddress NOT LIKE '192.168.%'  -- IP không thuộc mạng nội bộ
+AND T.IsFraud = 1;
