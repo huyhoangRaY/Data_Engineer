@@ -1,0 +1,106 @@
+--------- Hệ thống Quản lý Kho Dữ liệu Giao dịch Tài chính ---------------
+
+-- Tạo cơ sở dữ liệu
+CREATE DATABASE FinancialWarehouse;
+GO
+USE FinancialWarehouse;
+GO
+
+-- Bảng Customers
+CREATE TABLE Customers (
+    CustomerID INT PRIMARY KEY IDENTITY(1,1),
+    FullName NVARCHAR(100) NOT NULL,
+    Address NVARCHAR(200),
+    PhoneNumber NVARCHAR(15),
+    DateOfBirth DATE
+);
+
+-- Bảng Accounts
+CREATE TABLE Accounts (
+    AccountID INT PRIMARY KEY IDENTITY(1,1),
+    CustomerID INT NOT NULL,
+    Balance DECIMAL(15, 2) DEFAULT 0.00,
+    AccountType NVARCHAR(50),
+    OpenDate DATE DEFAULT GETDATE(),
+    FOREIGN KEY (CustomerID) REFERENCES Customers(CustomerID)
+);
+
+-- Bảng Transactions
+CREATE TABLE Transactions (
+    TransactionID INT PRIMARY KEY IDENTITY(1,1),
+    AccountID INT NOT NULL,
+    TransactionType NVARCHAR(50) NOT NULL,
+    Amount DECIMAL(15, 2) NOT NULL,
+    TransactionDate DATETIME DEFAULT GETDATE(),
+    FOREIGN KEY (AccountID) REFERENCES Accounts(AccountID)
+);
+
+-- Bảng Loans
+CREATE TABLE Loans (
+    LoanID INT PRIMARY KEY IDENTITY(1,1),
+    CustomerID INT NOT NULL,
+    LoanAmount DECIMAL(15, 2) NOT NULL,
+    Outstanding DECIMAL(15, 2) DEFAULT 0.00,
+    InterestRate DECIMAL(5, 2),
+    LoanStartDate DATE,
+    LoanEndDate DATE,
+    FOREIGN KEY (CustomerID) REFERENCES Customers(CustomerID)
+);
+
+INSERT INTO Customers (FullName, Address, PhoneNumber, DateOfBirth)
+VALUES
+(N'Nguyen Van A', N'Hanoi', '0987654321', '1990-05-15'),
+(N'Tran Thi B', N'Ho Chi Minh', '0987123456', '1985-10-10'),
+(N'Le Thi C', N'Da Nang', '0978123456', '1975-03-20'),
+(N'Pham Van D', N'Can Tho', '0967543210', '2000-07-12');
+
+INSERT INTO Accounts (CustomerID, Balance, AccountType, OpenDate)
+VALUES
+(1, 50000000, N'Savings', '2020-01-15'),
+(1, 10000000, N'Current', '2021-06-10'),
+(2, 20000000, N'Savings', '2021-03-22'),
+(3, 150000000, N'Fixed Deposit', '2019-11-05'),
+(4, 5000000, N'Savings', '2022-08-25');
+
+INSERT INTO Transactions (AccountID, TransactionType, Amount, TransactionDate)
+VALUES
+(1, N'Deposit', 10000000, '2023-01-10'),
+(1, N'Withdraw', 5000000, '2023-01-20'),
+(2, N'Deposit', 5000000, '2023-02-05'),
+(2, N'Transfer', 2000000, '2023-02-07'),
+(3, N'Deposit', 10000000, '2023-03-15'),
+(3, N'Withdraw', 5000000, '2023-03-20'),
+(4, N'Deposit', 1000000, '2023-04-01'),
+(4, N'Transfer', 2000000, '2023-04-05');
+
+INSERT INTO Loans (CustomerID, LoanAmount, Outstanding, InterestRate, LoanStartDate, LoanEndDate)
+VALUES
+(1, 500000000, 200000000, 5.5, '2021-01-01', '2026-01-01'),
+(2, 300000000, 100000000, 6.0, '2020-05-01', '2025-05-01'),
+(3, 1000000000, 800000000, 4.5, '2022-07-01', '2032-07-01'),
+(4, 200000000, 50000000, 6.5, '2023-01-01', '2028-01-01');
+
+-- Tính tổng dư nợ của khách hàng có dư nợ lớn nhất
+SELECT TOP 1
+    C.FullName, 
+    SUM(L.Outstanding) AS TotalOutstanding
+FROM Customers C
+JOIN Loans L ON C.CustomerID = L.CustomerID
+GROUP BY C.FullName
+ORDER BY TotalOutstanding DESC
+
+-- Danh sách khách hàng có số dư tài khoản trên 50 triệu
+SELECT 
+    C.FullName, 
+    A.AccountType, 
+    A.Balance
+FROM Customers C
+JOIN Accounts A ON C.CustomerID = A.CustomerID
+WHERE A.Balance > 50000000;
+
+-- Phân tích số tiền giao dịch trung bình theo loại giao dịch
+SELECT 
+    TransactionType, 
+    AVG(Amount) AS AvgAmount
+FROM Transactions
+GROUP BY TransactionType;
